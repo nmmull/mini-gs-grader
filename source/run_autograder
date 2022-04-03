@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+
+trap 'rm -rf $tmp_dir' EXIT
+
+dir=""
+tmp_dir=$dir/autograder/tmp
+tmp_err=$dir/autograder/tmp/err.txt
+tmp_sub=$dir/autograder/tmp/submission.pie
+tmp_res=$dir/autograder/tmp/results.json
+rm -rf $tmp_dir
+mkdir -p $tmp_dir
+
+results=$dir/autograder/results/results.json
+rm -f $results
+
+write () {
+    echo -n $1 >> $tmp_res
+}
+
+run_tmp () {
+    racket $tmp_sub 2> $tmp_err
+}
+
+write "{\"score\":0.0,\"tests\":["
+submitted=0
+for f in $dir/autograder/submission/*.pie
+do
+    if [ $submitted -eq 0 ]
+    then
+        submitted=1
+        cp $f $tmp_sub
+        run_tmp
+        if [[ "$(cat $tmp_err)" == "" ]]
+        then
+            write "{\"score\":1.0,\"max_score\":1.0,\"name\":\"Runs\"}"
+            for t in $dir/autograder/source/tests/*
+            do
+                write ",{\"name\":\"$(basename $t)\",\"visibility\":\"hidden\",\"output\":\""
+                write "====\nTEST\n====\n\n"
+                cat $t >> $tmp_res
+                cp $f $tmp_sub
+                cat $t >> $tmp_sub
+                run_tmp
+                if [[ "$(cat $tmp_err)" == "" ]]
+                then
+                    write "\n\n======\nPASSED\n======"
+                else
+                    write "\n\n==========\nNOT PASSED\n==========\n\n"
+                    cat $tmp_err >> $tmp_res
+                fi
+                write "\"}"
+            done
+        else
+            write "{\"score\":0.0,\"max_score\":1.0,\"name\":\"Runs\",\"output\":\""
+            write "======\nOUTPUT\n======\n\n"
+            cat $tmp_err >> $tmp_res
+            write "\"}"
+        fi
+    fi
+done
+if [ $submitted -eq 0 ]
+then
+    write "{\"score\":0.0,\"max_score\":1.0,\"name\":\"Runs\",\"output\":\"NO SUBMISSION FOUND\"}"
+fi
+write "]}"
+
+sed '$!s/$/\\n/' $tmp_res | tr -d '\n' > $results
