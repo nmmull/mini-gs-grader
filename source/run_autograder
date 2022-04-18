@@ -27,6 +27,7 @@ write_file () {
 
 run_test () {
     cp $1 $tmp_sub
+    echo -e "\n\n\n" >> $tmp_sub
     cat $2 >> $tmp_sub
     racket $tmp_sub 2> $tmp_err
 }
